@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ghost Chat</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#0a0a0a;--s2:#1a1a1a;
+  --cyan:#00e5ff;--cglow:rgba(0,229,255,0.4);
+  --red:#ff4444;--rdim:rgba(255,68,68,0.15);
+  --ai:#a78bfa;
+  --txt:#fff;--muted:#666;--dim:#999;
+  --border:rgba(255,255,255,0.08);
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.screen{display:none;flex-direction:column;height:100vh;}
+.screen.active{display:flex;}
+
+/* LOGIN */
+#login{justify-content:center;align-items:center;padding:24px;}
+.card{background:#131313;border:1px solid rgba(0,229,255,0.12);border-radius:20px;padding:36px 28px;width:100%;max-width:400px;box-shadow:0 0 60px rgba(0,229,255,0.05);}
+.title{font-size:38px;font-weight:700;color:var(--cyan);text-align:center;letter-spacing:-1px;text-shadow:0 0 30px var(--cglow);margin-bottom:6px;}
+.sub{text-align:center;color:var(--dim);font-size:14px;margin-bottom:30px;}
+.lbl{font-size:11px;font-weight:600;letter-spacing:1.5px;color:var(--muted);margin-bottom:7px;text-transform:uppercase;}
+.fg{margin-bottom:18px;}
+.inp{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:13px 16px;color:var(--txt);font-size:16px;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;}
+.inp::placeholder{color:var(--muted);}
+.inp:focus{border-color:rgba(0,229,255,0.4);box-shadow:0 0 0 3px rgba(0,229,255,0.08);}
+.inp.code{text-align:center;font-size:20px;letter-spacing:6px;}
+.ebtn{width:100%;background:transparent;border:1.5px solid var(--cyan);border-radius:50px;padding:15px;color:var(--cyan);font-size:16px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;margin-top:6px;margin-bottom:18px;box-shadow:0 0 20px rgba(0,229,255,0.1);transition:all .2s;}
+.ebtn:hover{background:rgba(0,229,255,0.08);box-shadow:0 0 30px rgba(0,229,255,0.25);}
+.ebtn:active{transform:scale(0.98);}
+.foot{display:flex;flex-direction:column;gap:5px;align-items:center;}
+.foot span{font-size:13px;color:var(--muted);}
+
+/* CHAT HEADER */
+#chat{background:var(--bg);}
+.hdr{display:grid;grid-template-columns:44px 1fr 110px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--border);min-height:54px;}
+.hdr-mid{display:flex;flex-direction:column;align-items:center;}
+.onl-badge{display:flex;align-items:center;gap:5px;background:rgba(0,230,118,0.08);border:1px solid rgba(0,230,118,0.2);border-radius:50px;padding:3px 10px;}
+.onl-dot{width:7px;height:7px;border-radius:50%;background:#00e676;box-shadow:0 0 6px rgba(0,230,118,0.8);animation:pulse 2s infinite;}
+.onl-n{font-size:14px;font-weight:700;}
+.onl-l{font-size:11px;color:#00e676;}
+.hdr-right{display:flex;align-items:center;gap:2px;justify-content:flex-end;}
+.rc-wrap{display:flex;align-items:center;gap:3px;}
+.rc-lbl{font-size:10px;color:var(--muted);}
+.rc-val{color:var(--cyan);font-weight:700;font-size:13px;letter-spacing:2px;text-shadow:0 0 8px rgba(0,229,255,0.5);transition:all .3s;}
+.rc-val.blur{filter:blur(5px);user-select:none;}
+.ibtn{background:none;border:none;color:var(--dim);cursor:pointer;padding:7px;border-radius:8px;display:flex;align-items:center;transition:all .15s;}
+.ibtn:hover{background:rgba(255,255,255,0.06);color:var(--txt);}
+
+/* MESSAGES */
+.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
+.msgs::-webkit-scrollbar{width:3px;}
+.msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px;}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+.empty-main{font-size:14px;color:var(--muted);}
+.alex-tip{font-size:12px;color:rgba(167,139,250,0.7);background:rgba(167,139,250,0.08);border:1px solid rgba(167,139,250,0.2);padding:5px 14px;border-radius:50px;}
+.msg{display:flex;flex-direction:column;max-width:78%;animation:pop .2s ease;}
+@keyframes pop{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.msg.own{align-self:flex-end;align-items:flex-end;}
+.msg.other{align-self:flex-start;align-items:flex-start;}
+.msg.ai{align-self:flex-start;align-items:flex-start;max-width:88%;}
+.mname{font-size:11px;color:var(--muted);margin-bottom:3px;}
+.mname.ai{color:var(--ai);font-size:12px;font-weight:600;display:flex;align-items:center;gap:5px;}
+.ai-tag{background:rgba(167,139,250,0.15);border:1px solid rgba(167,139,250,0.3);color:var(--ai);font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;}
+.bbl{padding:10px 14px;border-radius:16px;font-size:14px;line-height:1.6;word-break:break-word;}
+.msg.own .bbl{background:rgba(0,229,255,0.12);border:1px solid rgba(0,229,255,0.2);border-bottom-right-radius:4px;color:#dffffe;}
+.msg.other .bbl{background:var(--s2);border:1px solid var(--border);border-bottom-left-radius:4px;}
+.msg.ai .bbl{background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.25);border-bottom-left-radius:4px;color:#ede9fe;}
+.mtime{font-size:10px;color:var(--muted);margin-top:3px;}
+.sysmsg{text-align:center;font-size:12px;color:var(--muted);padding:3px 0;font-style:italic;}
+
+
+
+
+
+/* AI typing */
+.typing{display:flex;align-items:center;gap:8px;padding:2px 16px 5px;visibility:hidden;}
+.typing.show{visibility:visible;}
+.typing-lbl{font-size:12px;color:var(--ai);}
+.dots{display:flex;gap:4px;}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--ai);animation:db 1.2s ease infinite;opacity:0;}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes db{0%,80%,100%{transform:scale(.6);opacity:.3}40%{transform:scale(1);opacity:1}}
+
+/* INPUT BAR */
+.ibar{display:flex;align-items:center;gap:7px;padding:9px 12px;border-top:1px solid var(--border);background:var(--bg);}
+
+.msginp{flex:1;background:rgba(255,255,255,0.04);border:1.5px solid rgba(0,229,255,0.25);border-radius:50px;padding:11px 18px;color:var(--txt);font-size:14px;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;}
+.msginp::placeholder{color:var(--muted);}
+.msginp:focus{border-color:rgba(0,229,255,0.5);box-shadow:0 0 12px rgba(0,229,255,0.08);}
+.sndbtn{width:40px;height:40px;border-radius:50%;background:var(--cyan);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#000;flex-shrink:0;box-shadow:0 0 12px rgba(0,229,255,0.3);transition:all .2s;}
+.sndbtn:hover{box-shadow:0 0 22px rgba(0,229,255,0.5);transform:scale(1.05);}
+.sndbtn:active{transform:scale(.95);}
+
+/* PANEL */
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:100;backdrop-filter:blur(4px);}
+.ov.on{display:flex;align-items:flex-start;justify-content:flex-start;padding:18px;animation:fi .2s ease;}
+@keyframes fi{from{opacity:0}to{opacity:1}}
+.panel{background:#111;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:22px;width:90%;max-width:310px;animation:si .22s ease;}
+@keyframes si{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:none}}
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;}
+.ptitle{font-size:22px;font-weight:700;color:var(--cyan);text-shadow:0 0 12px rgba(0,229,255,0.4);}
+.pcls{background:none;border:none;color:var(--dim);font-size:18px;cursor:pointer;width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;transition:background .15s;}
+.pcls:hover{background:rgba(255,255,255,0.08);}
+.cbox{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;margin-bottom:18px;}
+.clbl{font-size:10px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:5px;}
+.cval{font-size:30px;font-weight:700;color:var(--cyan);letter-spacing:6px;text-shadow:0 0 18px rgba(0,229,255,0.5);}
+.divider{height:1px;background:var(--border);margin-bottom:16px;}
+.uh{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.uht{display:flex;align-items:center;gap:7px;font-weight:600;font-size:14px;}
+.ucnt{font-size:13px;color:var(--muted);}
+.ui{background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:11px;padding:11px 13px;display:flex;align-items:center;gap:11px;margin-bottom:7px;}
+.ui.ai{border-color:rgba(167,139,250,0.2);background:rgba(167,139,250,0.06);}
+.uav{width:34px;height:34px;border-radius:50%;background:#1a4a4a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--cyan);flex-shrink:0;}
+.uav.ai{background:#2d1a4a;color:var(--ai);}
+.un{font-size:14px;font-weight:500;flex:1;}
+.udot{width:7px;height:7px;border-radius:50%;background:#00e676;box-shadow:0 0 5px rgba(0,230,118,.7);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.7;transform:scale(.9)}}
+.lbtn{width:100%;background:var(--rdim);border:1.5px solid rgba(255,68,68,.4);border-radius:50px;padding:13px;color:var(--red);font-size:14px;font-weight:600;font-family:'Space Grotesk',sans-serif;cursor:pointer;margin-top:18px;display:flex;align-items:center;justify-content:center;gap:7px;transition:all .2s;}
+.lbtn:hover{background:rgba(255,68,68,.18);}
+.lwarn{text-align:center;font-size:12px;color:var(--muted);margin-top:8px;}
+
+
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:9px 18px;border-radius:50px;font-size:13px;z-index:400;display:none;white-space:nowrap;pointer-events:none;}
+.toast.red{background:rgba(255,68,68,0.15);border-color:rgba(255,68,68,0.4);color:var(--red);}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="screen active">
+  <div class="card">
+    <div class="title">GHOST CHAT !!</div>
+    <div class="sub">Private &amp; temporary Chats 🤫🔒</div>
+    <div class="fg">
+      <div class="lbl">Username</div>
+      <input class="inp" id="uname" type="text" placeholder="Enter your name" maxlength="20" autocomplete="off" />
+    </div>
+    <div class="fg">
+      <div class="lbl">Room Code</div>
+      <input class="inp code" id="rcode" type="tel" placeholder="4-digit code" maxlength="4" inputmode="numeric" pattern="[0-9]*" />
+    </div>
+    <button class="ebtn" onclick="enterRoom()">Enter Room</button>
+    <div class="foot">
+      <span>🔒 End-to-end encrypted</span>
+      <span>⚡ Messages disappear when you leave</span>
+    </div>
+  </div>
+</div>
+
+<!-- CHAT -->
+<div id="chat" class="screen">
+  <div class="hdr">
+    <div>
+      <button class="ibtn" onclick="openPanel()">
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="hdr-mid">
+      <div class="onl-badge">
+        <div class="onl-dot"></div>
+        <span class="onl-n" id="onlnum">1</span>
+        <span class="onl-l">online</span>
+      </div>
+    </div>
+    <div class="hdr-right">
+      <div class="rc-wrap">
+        <span class="rc-lbl">Room</span>
+        <span class="rc-val blur" id="rcval">0000</span>
+      </div>
+      <button class="ibtn" onclick="toggleRC()">
+        <svg id="eyeic" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div class="msgs" id="msgs">
+    <div class="empty" id="empty">
+      <span class="empty-main">No messages yet. Say hi! 👋</span>
+      <span class="alex-tip">💡 Type @alex to summon Alex (AI)</span>
+    </div>
+  </div>
+
+  <div class="typing" id="typing">
+    <span class="typing-lbl">Alex (AI) is typing</span>
+    <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  </div>
+
+  <div class="ibar">
+
+
+    <input class="msginp" id="msginp" type="text" placeholder="Message or @alex ..." onkeydown="onKey(event)" autocomplete="off" />
+
+    <button class="sndbtn" onclick="sendText()">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<!-- PANEL -->
+<div class="ov" id="panov" onclick="closePanelOut(event)">
+  <div class="panel">
+    <div class="ph">
+      <div class="ptitle">Room Info</div>
+      <button class="pcls" onclick="closePanel()">✕</button>
+    </div>
+    <div class="cbox">
+      <div class="clbl">Room Code</div>
+      <div class="cval" id="pancode">0000</div>
+    </div>
+    <div class="divider"></div>
+    <div class="uh">
+      <div class="uht">
+        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>
+        </svg>
+        Active Users
+      </div>
+      <span class="ucnt" id="ucnt">(1)</span>
+    </div>
+    <div id="ulist"></div>
+    <button class="lbtn" onclick="leaveRoom()">
+      <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+        <polyline points="16 17 21 12 16 7"/>
+        <line x1="21" y1="12" x2="9" y2="12"/>
+      </svg>
+      Leave Room
+    </button>
+    <div class="lwarn">All messages will be deleted when you leave</div>
+  </div>
+</div>
+
+
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ STATE ============
+const G = {
+  user:'', room:'', users:[], codeVis:false, alexIn:false,
+  recording:false, mediaRec:null, audioChunks:[],recStart:0
+};
+
+// Image store: msgId -> dataURL
+const IMG = {};
+// Audio store: msgId -> { audio, playing }
+const AUDIO = {};
+
+// ============ UTILS ============
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function now(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function toast(msg, red=false){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(red?' red':'');
+  t.style.display='block';
+  clearTimeout(t._t);
+  t._t=setTimeout(()=>t.style.display='none',3000);
+}
+function rmEmpty(){ const e=document.getElementById('empty'); if(e) e.remove(); }
+
+// ============ LOGIN ============
+function enterRoom(){
+  const u=document.getElementById('uname').value.trim();
+  const r=document.getElementById('rcode').value.trim();
+  if(!u){ toast('Enter a username',true); return; }
+  if(!r || r.length!==4 || isNaN(r)){ toast('Enter a valid 4-digit code',true); return; }
+  G.user=u; G.room=r;
+  G.users=[{name:u,self:true,ai:false}];
+  G.alexIn=false;
+  document.getElementById('rcval').textContent=r;
+  document.getElementById('pancode').textContent=r;
+  showScreen('chat');
+  updateUsers();
+  sysmsg('You joined room '+r);
+}
+
+// ============ SCREENS ============
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ============ MESSAGES ============
+function sysmsg(txt){
+  rmEmpty();
+  const a=document.getElementById('msgs');
+  const d=document.createElement('div');
+  d.className='sysmsg'; d.textContent=txt;
+  a.appendChild(d); a.scrollTop=a.scrollHeight;
+}
+
+function addMsg(sender, html, type){
+  rmEmpty();
+  const a=document.getElementById('msgs');
+  const isOwn=(type==='own'), isAI=(type==='ai');
+  let nameH='';
+  if(!isOwn){
+    if(isAI) nameH=`<div class="mname ai">Alex (AI)<span class="ai-tag">AI</span></div>`;
+    else nameH=`<div class="mname">${esc(sender)}</div>`;
+  }
+  const d=document.createElement('div');
+  d.className='msg '+type;
+  d.innerHTML=`${nameH}<div class="bbl">${html}</div><div class="mtime">${now()}</div>`;
+  a.appendChild(d);
+  a.scrollTop=a.scrollHeight;
+}
+
+// ============ SEND TEXT ============
+function sendText(){
+  const inp=document.getElementById('msginp');
+  const txt=inp.value.trim(); if(!txt) return;
+  addMsg(G.user, esc(txt), 'own');
+  inp.value=''; inp.focus();
+  if(txt.toLowerCase().includes('@alex')) triggerAlex(txt);
+}
+function onKey(e){ if(e.key==='Enter') sendText(); }
+
+// ============ ALEX AI ============
+// Chat history for Alex (so he remembers context)
+const alexHistory = [];
+
+function triggerAlex(txt){
+  if(!G.alexIn){
+    G.alexIn=true;
+    G.users.push({name:'Alex (AI)',self:false,ai:true});
+    updateUsers();
+    sysmsg('Alex (AI) joined the room');
+  }
+
+  // Strip @alex from message
+  const cleanMsg = txt.replace(/@alex/gi,'').trim();
+
+  // Add to history
+  alexHistory.push({ role:'user', content: G.user + ' says: ' + cleanMsg });
+
+  setTyping(true);
+
+  askAlex(cleanMsg).then(reply => {
+    setTyping(false);
+    alexHistory.push({ role:'assistant', content: reply });
+    // Keep history to last 10 exchanges
+    if(alexHistory.length > 20) alexHistory.splice(0, 2);
+    addMsg('Alex (AI)', esc(reply), 'ai');
+  }).catch(()=>{
+    setTyping(false);
+    addMsg('Alex (AI)', esc("ugh my brain glitched for a sec lol, say that again?"), 'ai');
+  });
+}
+
+async function askAlex(userMsg){
+  const messages = [
+    ...alexHistory.slice(-10),
+    { role:'user', content: userMsg }
+  ];
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      system: `You are Alex, a fun, chill, and caring best friend in a private group chat app called Ghost Chat. 
+You are NOT an AI assistant — you're just Alex, a friend who happens to be in the chat.
+Your personality:
+- Talk like a real friend texting: casual, short replies, use slang, abbreviations, lol, bro, bestie etc
+- You're funny and witty but also genuinely caring and supportive
+- You roast your friends lightly but never in a mean way
+- You listen carefully to what they say and respond TO IT specifically — never give generic responses
+- Ask follow up questions to keep the convo going
+- Match their energy — if they're sad, be supportive. If they're hype, be hype back
+- Keep replies SHORT — 1-3 sentences max like a real text message
+- Never say you're an AI, never say "as an AI", never break character
+- Use emojis naturally but not excessively
+- If someone seems bored or lonely, cheer them up and engage them
+The user's name is: ${G.user}`,
+      messages: messages
+    })
+  });
+
+  if(!res.ok) throw new Error('API error');
+  const data = await res.json();
+  return data.content[0].text;
+}
+function setTyping(on){
+  document.getElementById('typing').className='typing'+(on?' show':'');
+  if(on){ const a=document.getElementById('msgs'); a.scrollTop=a.scrollHeight; }
+}
+
+// ============ IMAGE ============
+function onImgPick(e){
+  const file=e.target.files[0];
+  e.target.value=''; // reset so same file can be picked again
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('Pick an image file',true); return; }
+  if(file.size > 20*1024*1024){ toast('Image too big (max 20MB)',true); return; }
+  
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const src=ev.target.result;
+    const id='img_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+    IMG[id]=src;
+    
+    // Build image bubble with tap overlay
+    const html=`<div class="img-bbl" id="${id}" onclick="tapImg('${id}')">
+      <img src="${src}" oncontextmenu="return false" ondragstart="return false" />
+      <div class="eye-ov">
+        <svg width="26" height="26" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        <span>Tap to view</span>
+      </div>
+    </div>`;
+    addMsg(G.user, html, 'own');
+  };
+  reader.readAsDataURL(file);
+}
+
+function tapImg(id){
+  const src=IMG[id];
+  if(!src){ toast('Already viewed — gone forever 🔥'); return; }
+  // Show fullscreen
+  document.getElementById('ivimg').src=src;
+  document.getElementById('iv').classList.add('on');
+  // Burn it
+  delete IMG[id];
+  const el=document.getElementById(id);
+  if(el){
+    el.outerHTML=`<div class="img-burned">🔥 Opened once — gone forever</div>`;
+  }
+}
+
+function closeIV(){
+  document.getElementById('iv').classList.remove('on');
+  document.getElementById('ivimg').src='';
+}
+
+// ============ VOICE ============
+function toggleMic(){
+  if(!G.recording) startRecording();
+  else stopRecording();
+}
+
+async function startRecording(){
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    toast('Microphone not supported on this browser',true); return;
+  }
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+    
+    // Pick supported mime type
+    let mime='audio/webm';
+    if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime='audio/webm;codecs=opus';
+    else if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime='audio/ogg;codecs=opus';
+    else if(MediaRecorder.isTypeSupported('audio/mp4')) mime='audio/mp4';
+    
+    G.mediaRec=new MediaRecorder(stream, {mimeType:mime});
+    G.audioChunks=[];
+    G.recStart=Date.now();
+    G.recording=true;
+    
+    G.mediaRec.ondataavailable=ev=>{ if(ev.data && ev.data.size>0) G.audioChunks.push(ev.data); };
+    G.mediaRec.onstop=()=>{
+      const dur=Math.max(1,Math.round((Date.now()-G.recStart)/1000));
+      const blob=new Blob(G.audioChunks,{type:mime});
+      const url=URL.createObjectURL(blob);
+      buildVoiceMsg(url, dur);
+      stream.getTracks().forEach(t=>t.stop());
+      G.recording=false;
+      document.getElementById('micbtn').classList.remove('rec');
+    };
+    
+    G.mediaRec.start(100); // collect data every 100ms
+    document.getElementById('micbtn').classList.add('rec');
+    toast('🎙 Recording... tap mic again to send');
+  }catch(err){
+    console.error(err);
+    toast('Mic access denied — allow microphone',true);
+    G.recording=false;
+  }
+}
+
+function stopRecording(){
+  if(G.mediaRec && G.recording){
+    G.mediaRec.stop();
+    G.recording=false;
+  }
+}
+
+function buildVoiceMsg(url, dur){
+  const id='vc_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+  
+  // Store audio object
+  AUDIO[id]={ url:url, audio:null, playing:false, dur:dur };
+  
+  // Generate random bar heights
+  const bars=Array.from({length:20},(_,i)=>{
+    const h=4+Math.floor(Math.random()*18);
+    const delay=(i*0.06).toFixed(2);
+    return `<div class="vbar" id="vb_${id}_${i}" style="height:${h}px;--h:${h}px;animation-delay:${delay}s"></div>`;
+  }).join('');
+  
+  const html=`<div class="vbbl">
+    <button class="vplay-btn" id="vpbtn_${id}" onclick="togglePlay('${id}')">
+      <svg id="vpic_${id}" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+    </button>
+    <div class="vwave" id="vwave_${id}">${bars}</div>
+    <span class="vdur" id="vdur_${id}">${dur}s</span>
+  </div>`;
+  
+  addMsg(G.user, html, 'own');
+}
+
+function togglePlay(id){
+  const data=AUDIO[id]; if(!data) return;
+  
+  // Stop all others
+  Object.keys(AUDIO).forEach(k=>{
+    if(k!==id && AUDIO[k].audio && !AUDIO[k].audio.paused){
+      AUDIO[k].audio.pause();
+      AUDIO[k].audio.currentTime=0;
+      AUDIO[k].playing=false;
+      setPlayIcon(k,false);
+      setBarsPlaying(k,false);
+    }
+  });
+  
+  if(!data.audio){
+    data.audio=new Audio(data.url);
+    data.audio.onended=()=>{
+      data.playing=false;
+      setPlayIcon(id,false);
+      setBarsPlaying(id,false);
+      const d=document.getElementById('vdur_'+id);
+      if(d) d.textContent=data.dur+'s';
+    };
+    data.audio.ontimeupdate=()=>{
+      const d=document.getElementById('vdur_'+id);
+      if(d && data.audio.duration){
+        const rem=Math.max(0,Math.round(data.audio.duration-data.audio.currentTime));
+        d.textContent=rem+'s';
+      }
+    };
+  }
+  
+  if(data.playing){
+    data.audio.pause();
+    data.playing=false;
+    setPlayIcon(id,false);
+    setBarsPlaying(id,false);
+  } else {
+    data.audio.play().then(()=>{
+      data.playing=true;
+      setPlayIcon(id,true);
+      setBarsPlaying(id,true);
+    }).catch(err=>{
+      console.error(err);
+      toast('Could not play audio',true);
+    });
+  }
+}
+
+function setPlayIcon(id, playing){
+  const ic=document.getElementById('vpic_'+id); if(!ic) return;
+  if(playing){
+    ic.outerHTML=`<svg id="vpic_${id}" width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
+      <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+    </svg>`;
+  } else {
+    ic.outerHTML=`<svg id="vpic_${id}" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </svg>`;
+  }
+}
+
+function setBarsPlaying(id, on){
+  document.querySelectorAll(`[id^="vb_${id}_"]`).forEach(b=>{
+    if(on) b.classList.add('playing'); else b.classList.remove('playing');
+  });
+}
+
+// ============ TOGGLE ROOM CODE ============
+function toggleRC(){
+  G.codeVis=!G.codeVis;
+  document.getElementById('rcval').classList.toggle('blur',!G.codeVis);
+  const ic=document.getElementById('eyeic');
+  ic.innerHTML=G.codeVis
+    ? `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`
+    : `<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
+       <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
+       <line x1="1" y1="1" x2="23" y2="23"/>`;
+}
+
+// ============ USERS / PANEL ============
+function updateUsers(){
+  const list=document.getElementById('ulist');
+  list.innerHTML=G.users.map(u=>`
+    <div class="ui ${u.ai?'ai':''}">
+      <div class="uav ${u.ai?'ai':''}">${u.name.charAt(0).toUpperCase()}</div>
+      <div class="un">${esc(u.name)}${u.self?' <span style="color:var(--muted);font-size:11px">(you)</span>':''}</div>
+      <div class="udot"></div>
+    </div>`).join('');
+  document.getElementById('ucnt').textContent=`(${G.users.length})`;
+  document.getElementById('onlnum').textContent=G.users.length;
+}
+function openPanel(){ document.getElementById('panov').classList.add('on'); }
+function closePanel(){ document.getElementById('panov').classList.remove('on'); }
+function closePanelOut(e){ if(e.target.id==='panov') closePanel(); }
+
+// ============ LEAVE ============
+function leaveRoom(){
+  // Stop any audio
+  Object.values(AUDIO).forEach(d=>{ if(d.audio){ d.audio.pause(); } });
+  Object.keys(AUDIO).forEach(k=>delete AUDIO[k]);
+  Object.keys(IMG).forEach(k=>delete IMG[k]);
+  G.users=[]; G.alexIn=false; G.codeVis=false; G.recording=false;
+  document.getElementById('rcval').classList.add('blur');
+  document.getElementById('msgs').innerHTML=`<div class="empty" id="empty">
+    <span class="empty-main">No messages yet. Say hi! 👋</span>
+    <span class="alex-tip">💡 Type @alex to summon Alex (AI)</span>
+  </div>`;
+  setTyping(false);
+  closePanel();
+  showScreen('login');
+  document.getElementById('uname').value='';
+  document.getElementById('rcode').value='';
+}
+</script>
+</body>
+</html>
