@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content">
 <title>Ghost Chat</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 *{margin:0;padding:0;box-sizing:border-box;}
@@ -15,8 +17,8 @@
   --txt:#fff;--muted:#666;--dim:#999;
   --border:rgba(255,255,255,0.08);
 }
-body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt);height:100vh;display:flex;flex-direction:column;overflow:hidden;}
-.screen{display:none;flex-direction:column;height:100vh;}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt);height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+.screen{display:none;flex-direction:column;height:100dvh;}
 .screen.active{display:flex;}
 
 /* LOGIN */
@@ -53,7 +55,6 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
 .ibtn:hover{background:rgba(255,255,255,0.06);color:var(--txt);}
 
 /* MESSAGES */
-.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;}
 .msgs::-webkit-scrollbar{width:3px;}
 .msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.08);border-radius:3px;}
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
@@ -74,10 +75,6 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
 .mtime{font-size:10px;color:var(--muted);margin-top:3px;}
 .sysmsg{text-align:center;font-size:12px;color:var(--muted);padding:3px 0;font-style:italic;}
 
-
-
-
-
 /* AI typing */
 .typing{display:flex;align-items:center;gap:8px;padding:2px 16px 5px;visibility:hidden;}
 .typing.show{visibility:visible;}
@@ -88,8 +85,10 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
 @keyframes db{0%,80%,100%{transform:scale(.6);opacity:.3}40%{transform:scale(1);opacity:1}}
 
 /* INPUT BAR */
-.ibar{display:flex;align-items:center;gap:7px;padding:9px 12px;border-top:1px solid var(--border);background:var(--bg);}
-
+.ibar{display:flex;align-items:center;gap:7px;padding:9px 12px;border-top:1px solid var(--border);background:var(--bg);flex-shrink:0;}
+#chat{display:none;flex-direction:column;height:100dvh;overflow:hidden;}
+#chat.active{display:flex;}
+.msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;overscroll-behavior:contain;}
 .msginp{flex:1;background:rgba(255,255,255,0.04);border:1.5px solid rgba(0,229,255,0.25);border-radius:50px;padding:11px 18px;color:var(--txt);font-size:14px;font-family:'Space Grotesk',sans-serif;outline:none;transition:border-color .2s,box-shadow .2s;}
 .msginp::placeholder{color:var(--muted);}
 .msginp:focus{border-color:rgba(0,229,255,0.5);box-shadow:0 0 12px rgba(0,229,255,0.08);}
@@ -125,7 +124,12 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
 .lbtn:hover{background:rgba(255,68,68,.18);}
 .lwarn{text-align:center;font-size:12px;color:var(--muted);margin-top:8px;}
 
-
+/* CONNECTING */
+.conn-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:500;align-items:center;justify-content:center;flex-direction:column;gap:14px;backdrop-filter:blur(6px);}
+.conn-ov.show{display:flex;}
+.conn-spin{width:34px;height:34px;border:3px solid rgba(0,229,255,0.2);border-top-color:var(--cyan);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.conn-txt{color:var(--cyan);font-size:15px;font-weight:600;}
 
 /* TOAST */
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.85);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:9px 18px;border-radius:50px;font-size:13px;z-index:400;display:none;white-space:nowrap;pointer-events:none;}
@@ -133,6 +137,12 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
 </style>
 </head>
 <body>
+
+<!-- CONNECTING OVERLAY -->
+<div class="conn-ov" id="connOv">
+  <div class="conn-spin"></div>
+  <div class="conn-txt" id="connTxt">Joining room...</div>
+</div>
 
 <!-- LOGIN -->
 <div id="login" class="screen active">
@@ -200,10 +210,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
   </div>
 
   <div class="ibar">
-
-
     <input class="msginp" id="msginp" type="text" placeholder="Message or @alex ..." onkeydown="onKey(event)" autocomplete="off" />
-
     <button class="sndbtn" onclick="sendText()">
       <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
         <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
@@ -247,403 +254,144 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--txt
   </div>
 </div>
 
-
-
 <div class="toast" id="toast"></div>
 
 <script>
-// ============ STATE ============
-const G = {
-  user:'', room:'', users:[], codeVis:false, alexIn:false,
-  recording:false, mediaRec:null, audioChunks:[],recStart:0
-};
+// ============ FIREBASE INIT ============
+firebase.initializeApp({
+  apiKey: "AIzaSyB8aFrpREstyHSM7k3TuHQ2ykJRE6YPat4",
+  authDomain: "ghostchat-55c93.firebaseapp.com",
+  databaseURL: "https://ghostchat-55c93-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "ghostchat-55c93",
+  storageBucket: "ghostchat-55c93.firebasestorage.app",
+  messagingSenderId: "394638475405",
+  appId: "1:394638475405:web:ae396ce23fd37b6e9bc2b0"
+});
+var db = firebase.database();
 
-// Image store: msgId -> dataURL
-const IMG = {};
-// Audio store: msgId -> { audio, playing }
-const AUDIO = {};
+// ============ STATE ============
+var G = {
+  user:'', room:'', uid:'',
+  codeVis:false, alexIn:false,
+  msgRef:null, usersRef:null, myRef:null, seen:{}
+};
+var alexHistory = [];
 
 // ============ UTILS ============
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function now(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
-function toast(msg, red=false){
-  const t=document.getElementById('toast');
+function nowTime(){ return new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}); }
+function genUid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2); }
+function rmEmpty(){ var e=document.getElementById('empty'); if(e) e.remove(); }
+function toast(msg,red){
+  var t=document.getElementById('toast');
   t.textContent=msg; t.className='toast'+(red?' red':'');
-  t.style.display='block';
-  clearTimeout(t._t);
-  t._t=setTimeout(()=>t.style.display='none',3000);
+  t.style.display='block'; clearTimeout(t._t);
+  t._t=setTimeout(function(){ t.style.display='none'; },3000);
 }
-function rmEmpty(){ const e=document.getElementById('empty'); if(e) e.remove(); }
-
-// ============ LOGIN ============
-function enterRoom(){
-  const u=document.getElementById('uname').value.trim();
-  const r=document.getElementById('rcode').value.trim();
-  if(!u){ toast('Enter a username',true); return; }
-  if(!r || r.length!==4 || isNaN(r)){ toast('Enter a valid 4-digit code',true); return; }
-  G.user=u; G.room=r;
-  G.users=[{name:u,self:true,ai:false}];
-  G.alexIn=false;
-  document.getElementById('rcval').textContent=r;
-  document.getElementById('pancode').textContent=r;
-  showScreen('chat');
-  updateUsers();
-  sysmsg('You joined room '+r);
+function showConn(txt){
+  document.getElementById('connTxt').textContent=txt;
+  document.getElementById('connOv').classList.add('show');
 }
-
-// ============ SCREENS ============
+function hideConn(){ document.getElementById('connOv').classList.remove('show'); }
 function showScreen(id){
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.screen').forEach(function(s){ s.classList.remove('active'); });
   document.getElementById(id).classList.add('active');
 }
 
-// ============ MESSAGES ============
-function sysmsg(txt){
+// ============ ENTER ROOM ============
+function enterRoom(){
+  var u = document.getElementById('uname').value.trim();
+  var r = document.getElementById('rcode').value.trim();
+  if(!u){ toast('Enter a username', true); return; }
+  if(!r || r.length!==4 || isNaN(r)){ toast('Enter a valid 4-digit code', true); return; }
+
+  G.user = u; G.room = r; G.uid = genUid();
+  showConn('Joining room...');
+
+  // Register presence
+  G.myRef = db.ref('rooms/'+r+'/users/'+G.uid);
+  G.myRef.set({ name: u, ts: firebase.database.ServerValue.TIMESTAMP })
+    .then(function(){
+      // Auto-remove when browser closes
+      G.myRef.onDisconnect().remove();
+
+      // Watch users list
+      G.usersRef = db.ref('rooms/'+r+'/users');
+      G.usersRef.on('value', function(snap){
+        updateUsers(snap.val() || {});
+      });
+
+      // Watch messages
+      G.msgRef = db.ref('rooms/'+r+'/messages');
+      G.msgRef.on('child_added', function(snap){
+        if(!snap.key || G.seen[snap.key]) return;
+        G.seen[snap.key] = true;
+        renderMsg(snap.val());
+      });
+
+      document.getElementById('rcval').textContent = r;
+      document.getElementById('pancode').textContent = r;
+      showScreen('chat');
+      hideConn();
+
+      // Push join message
+      G.msgRef.push({ type:'sys', text: u+' joined the room 👻', time: nowTime(), ts: Date.now() });
+    })
+    .catch(function(e){
+      hideConn();
+      toast('Connection failed! Check internet.', true);
+      console.error(e);
+    });
+}
+
+// ============ RENDER MESSAGE FROM FIREBASE ============
+function renderMsg(msg){
+  if(!msg) return;
+  if(msg.type === 'sys'){ addSys(msg.text); return; }
+  var isOwn = (msg.uid === G.uid);
+  var type = msg.type==='ai' ? 'ai' : (isOwn ? 'own' : 'other');
+  addMsg(msg.sender, msg.text, type, msg.time);
+}
+
+// ============ DOM HELPERS ============
+function addSys(txt){
   rmEmpty();
-  const a=document.getElementById('msgs');
-  const d=document.createElement('div');
+  var a=document.getElementById('msgs');
+  var d=document.createElement('div');
   d.className='sysmsg'; d.textContent=txt;
   a.appendChild(d); a.scrollTop=a.scrollHeight;
 }
 
-function addMsg(sender, html, type){
+function addMsg(sender, text, type, time){
   rmEmpty();
-  const a=document.getElementById('msgs');
-  const isOwn=(type==='own'), isAI=(type==='ai');
-  let nameH='';
+  var a=document.getElementById('msgs');
+  var isOwn=(type==='own'), isAI=(type==='ai');
+  var nameH='';
   if(!isOwn){
-    if(isAI) nameH=`<div class="mname ai">Alex (AI)<span class="ai-tag">AI</span></div>`;
-    else nameH=`<div class="mname">${esc(sender)}</div>`;
+    if(isAI) nameH='<div class="mname ai">Alex (AI)<span class="ai-tag">AI</span></div>';
+    else nameH='<div class="mname">'+esc(sender)+'</div>';
   }
-  const d=document.createElement('div');
+  var d=document.createElement('div');
   d.className='msg '+type;
-  d.innerHTML=`${nameH}<div class="bbl">${html}</div><div class="mtime">${now()}</div>`;
-  a.appendChild(d);
-  a.scrollTop=a.scrollHeight;
+  d.innerHTML=nameH+'<div class="bbl">'+esc(text)+'</div><div class="mtime">'+(time||nowTime())+'</div>';
+  a.appendChild(d); a.scrollTop=a.scrollHeight;
 }
 
 // ============ SEND TEXT ============
 function sendText(){
-  const inp=document.getElementById('msginp');
-  const txt=inp.value.trim(); if(!txt) return;
-  addMsg(G.user, esc(txt), 'own');
+  var inp=document.getElementById('msginp');
+  var txt=inp.value.trim(); if(!txt) return;
   inp.value=''; inp.focus();
-  if(txt.toLowerCase().includes('@alex')) triggerAlex(txt);
+
+  G.msgRef.push({
+    type:'text', sender: G.user, uid: G.uid,
+    text: txt, time: nowTime(), ts: Date.now()
+  });
+
+  if(txt.toLowerCase().indexOf('@alex') !== -1) triggerAlex(txt);
 }
 function onKey(e){ if(e.key==='Enter') sendText(); }
 
 // ============ ALEX AI ============
-// Chat history for Alex (so he remembers context)
-const alexHistory = [];
-
 function triggerAlex(txt){
-  if(!G.alexIn){
-    G.alexIn=true;
-    G.users.push({name:'Alex (AI)',self:false,ai:true});
-    updateUsers();
-    sysmsg('Alex (AI) joined the room');
-  }
-
-  // Strip @alex from message
-  const cleanMsg = txt.replace(/@alex/gi,'').trim();
-
-  // Add to history
-  alexHistory.push({ role:'user', content: G.user + ' says: ' + cleanMsg });
-
-  setTyping(true);
-
-  askAlex(cleanMsg).then(reply => {
-    setTyping(false);
-    alexHistory.push({ role:'assistant', content: reply });
-    // Keep history to last 10 exchanges
-    if(alexHistory.length > 20) alexHistory.splice(0, 2);
-    addMsg('Alex (AI)', esc(reply), 'ai');
-  }).catch(()=>{
-    setTyping(false);
-    addMsg('Alex (AI)', esc("ugh my brain glitched for a sec lol, say that again?"), 'ai');
-  });
-}
-
-async function askAlex(userMsg){
-  const messages = [
-    ...alexHistory.slice(-10),
-    { role:'user', content: userMsg }
-  ];
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 200,
-      system: `You are Alex, a fun, chill, and caring best friend in a private group chat app called Ghost Chat. 
-You are NOT an AI assistant — you're just Alex, a friend who happens to be in the chat.
-Your personality:
-- Talk like a real friend texting: casual, short replies, use slang, abbreviations, lol, bro, bestie etc
-- You're funny and witty but also genuinely caring and supportive
-- You roast your friends lightly but never in a mean way
-- You listen carefully to what they say and respond TO IT specifically — never give generic responses
-- Ask follow up questions to keep the convo going
-- Match their energy — if they're sad, be supportive. If they're hype, be hype back
-- Keep replies SHORT — 1-3 sentences max like a real text message
-- Never say you're an AI, never say "as an AI", never break character
-- Use emojis naturally but not excessively
-- If someone seems bored or lonely, cheer them up and engage them
-The user's name is: ${G.user}`,
-      messages: messages
-    })
-  });
-
-  if(!res.ok) throw new Error('API error');
-  const data = await res.json();
-  return data.content[0].text;
-}
-function setTyping(on){
-  document.getElementById('typing').className='typing'+(on?' show':'');
-  if(on){ const a=document.getElementById('msgs'); a.scrollTop=a.scrollHeight; }
-}
-
-// ============ IMAGE ============
-function onImgPick(e){
-  const file=e.target.files[0];
-  e.target.value=''; // reset so same file can be picked again
-  if(!file) return;
-  if(!file.type.startsWith('image/')){ toast('Pick an image file',true); return; }
-  if(file.size > 20*1024*1024){ toast('Image too big (max 20MB)',true); return; }
-  
-  const reader=new FileReader();
-  reader.onload=function(ev){
-    const src=ev.target.result;
-    const id='img_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-    IMG[id]=src;
-    
-    // Build image bubble with tap overlay
-    const html=`<div class="img-bbl" id="${id}" onclick="tapImg('${id}')">
-      <img src="${src}" oncontextmenu="return false" ondragstart="return false" />
-      <div class="eye-ov">
-        <svg width="26" height="26" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-          <circle cx="12" cy="12" r="3"/>
-        </svg>
-        <span>Tap to view</span>
-      </div>
-    </div>`;
-    addMsg(G.user, html, 'own');
-  };
-  reader.readAsDataURL(file);
-}
-
-function tapImg(id){
-  const src=IMG[id];
-  if(!src){ toast('Already viewed — gone forever 🔥'); return; }
-  // Show fullscreen
-  document.getElementById('ivimg').src=src;
-  document.getElementById('iv').classList.add('on');
-  // Burn it
-  delete IMG[id];
-  const el=document.getElementById(id);
-  if(el){
-    el.outerHTML=`<div class="img-burned">🔥 Opened once — gone forever</div>`;
-  }
-}
-
-function closeIV(){
-  document.getElementById('iv').classList.remove('on');
-  document.getElementById('ivimg').src='';
-}
-
-// ============ VOICE ============
-function toggleMic(){
-  if(!G.recording) startRecording();
-  else stopRecording();
-}
-
-async function startRecording(){
-  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-    toast('Microphone not supported on this browser',true); return;
-  }
-  try{
-    const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-    
-    // Pick supported mime type
-    let mime='audio/webm';
-    if(MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mime='audio/webm;codecs=opus';
-    else if(MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) mime='audio/ogg;codecs=opus';
-    else if(MediaRecorder.isTypeSupported('audio/mp4')) mime='audio/mp4';
-    
-    G.mediaRec=new MediaRecorder(stream, {mimeType:mime});
-    G.audioChunks=[];
-    G.recStart=Date.now();
-    G.recording=true;
-    
-    G.mediaRec.ondataavailable=ev=>{ if(ev.data && ev.data.size>0) G.audioChunks.push(ev.data); };
-    G.mediaRec.onstop=()=>{
-      const dur=Math.max(1,Math.round((Date.now()-G.recStart)/1000));
-      const blob=new Blob(G.audioChunks,{type:mime});
-      const url=URL.createObjectURL(blob);
-      buildVoiceMsg(url, dur);
-      stream.getTracks().forEach(t=>t.stop());
-      G.recording=false;
-      document.getElementById('micbtn').classList.remove('rec');
-    };
-    
-    G.mediaRec.start(100); // collect data every 100ms
-    document.getElementById('micbtn').classList.add('rec');
-    toast('🎙 Recording... tap mic again to send');
-  }catch(err){
-    console.error(err);
-    toast('Mic access denied — allow microphone',true);
-    G.recording=false;
-  }
-}
-
-function stopRecording(){
-  if(G.mediaRec && G.recording){
-    G.mediaRec.stop();
-    G.recording=false;
-  }
-}
-
-function buildVoiceMsg(url, dur){
-  const id='vc_'+Date.now()+'_'+Math.random().toString(36).slice(2);
-  
-  // Store audio object
-  AUDIO[id]={ url:url, audio:null, playing:false, dur:dur };
-  
-  // Generate random bar heights
-  const bars=Array.from({length:20},(_,i)=>{
-    const h=4+Math.floor(Math.random()*18);
-    const delay=(i*0.06).toFixed(2);
-    return `<div class="vbar" id="vb_${id}_${i}" style="height:${h}px;--h:${h}px;animation-delay:${delay}s"></div>`;
-  }).join('');
-  
-  const html=`<div class="vbbl">
-    <button class="vplay-btn" id="vpbtn_${id}" onclick="togglePlay('${id}')">
-      <svg id="vpic_${id}" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-        <polygon points="5 3 19 12 5 21 5 3"/>
-      </svg>
-    </button>
-    <div class="vwave" id="vwave_${id}">${bars}</div>
-    <span class="vdur" id="vdur_${id}">${dur}s</span>
-  </div>`;
-  
-  addMsg(G.user, html, 'own');
-}
-
-function togglePlay(id){
-  const data=AUDIO[id]; if(!data) return;
-  
-  // Stop all others
-  Object.keys(AUDIO).forEach(k=>{
-    if(k!==id && AUDIO[k].audio && !AUDIO[k].audio.paused){
-      AUDIO[k].audio.pause();
-      AUDIO[k].audio.currentTime=0;
-      AUDIO[k].playing=false;
-      setPlayIcon(k,false);
-      setBarsPlaying(k,false);
-    }
-  });
-  
-  if(!data.audio){
-    data.audio=new Audio(data.url);
-    data.audio.onended=()=>{
-      data.playing=false;
-      setPlayIcon(id,false);
-      setBarsPlaying(id,false);
-      const d=document.getElementById('vdur_'+id);
-      if(d) d.textContent=data.dur+'s';
-    };
-    data.audio.ontimeupdate=()=>{
-      const d=document.getElementById('vdur_'+id);
-      if(d && data.audio.duration){
-        const rem=Math.max(0,Math.round(data.audio.duration-data.audio.currentTime));
-        d.textContent=rem+'s';
-      }
-    };
-  }
-  
-  if(data.playing){
-    data.audio.pause();
-    data.playing=false;
-    setPlayIcon(id,false);
-    setBarsPlaying(id,false);
-  } else {
-    data.audio.play().then(()=>{
-      data.playing=true;
-      setPlayIcon(id,true);
-      setBarsPlaying(id,true);
-    }).catch(err=>{
-      console.error(err);
-      toast('Could not play audio',true);
-    });
-  }
-}
-
-function setPlayIcon(id, playing){
-  const ic=document.getElementById('vpic_'+id); if(!ic) return;
-  if(playing){
-    ic.outerHTML=`<svg id="vpic_${id}" width="12" height="12" fill="currentColor" viewBox="0 0 24 24">
-      <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-    </svg>`;
-  } else {
-    ic.outerHTML=`<svg id="vpic_${id}" width="14" height="14" fill="currentColor" viewBox="0 0 24 24">
-      <polygon points="5 3 19 12 5 21 5 3"/>
-    </svg>`;
-  }
-}
-
-function setBarsPlaying(id, on){
-  document.querySelectorAll(`[id^="vb_${id}_"]`).forEach(b=>{
-    if(on) b.classList.add('playing'); else b.classList.remove('playing');
-  });
-}
-
-// ============ TOGGLE ROOM CODE ============
-function toggleRC(){
-  G.codeVis=!G.codeVis;
-  document.getElementById('rcval').classList.toggle('blur',!G.codeVis);
-  const ic=document.getElementById('eyeic');
-  ic.innerHTML=G.codeVis
-    ? `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`
-    : `<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/>
-       <path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/>
-       <line x1="1" y1="1" x2="23" y2="23"/>`;
-}
-
-// ============ USERS / PANEL ============
-function updateUsers(){
-  const list=document.getElementById('ulist');
-  list.innerHTML=G.users.map(u=>`
-    <div class="ui ${u.ai?'ai':''}">
-      <div class="uav ${u.ai?'ai':''}">${u.name.charAt(0).toUpperCase()}</div>
-      <div class="un">${esc(u.name)}${u.self?' <span style="color:var(--muted);font-size:11px">(you)</span>':''}</div>
-      <div class="udot"></div>
-    </div>`).join('');
-  document.getElementById('ucnt').textContent=`(${G.users.length})`;
-  document.getElementById('onlnum').textContent=G.users.length;
-}
-function openPanel(){ document.getElementById('panov').classList.add('on'); }
-function closePanel(){ document.getElementById('panov').classList.remove('on'); }
-function closePanelOut(e){ if(e.target.id==='panov') closePanel(); }
-
-// ============ LEAVE ============
-function leaveRoom(){
-  // Stop any audio
-  Object.values(AUDIO).forEach(d=>{ if(d.audio){ d.audio.pause(); } });
-  Object.keys(AUDIO).forEach(k=>delete AUDIO[k]);
-  Object.keys(IMG).forEach(k=>delete IMG[k]);
-  G.users=[]; G.alexIn=false; G.codeVis=false; G.recording=false;
-  document.getElementById('rcval').classList.add('blur');
-  document.getElementById('msgs').innerHTML=`<div class="empty" id="empty">
-    <span class="empty-main">No messages yet. Say hi! 👋</span>
-    <span class="alex-tip">💡 Type @alex to summon Alex (AI)</span>
-  </div>`;
-  setTyping(false);
-  closePanel();
-  showScreen('login');
-  document.getElementById('uname').value='';
-  document.getElementById('rcode').value='';
-}
-</script>
-</body>
-</html>
+  if(!G.a
